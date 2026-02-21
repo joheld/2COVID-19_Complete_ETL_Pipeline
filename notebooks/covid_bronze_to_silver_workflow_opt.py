@@ -49,6 +49,7 @@ if cases_1m_col:
 if deaths_1m_col:
     df_covid_pop = df_covid_pop.withColumnRenamed(deaths_1m_col, "tot_deaths_per_million")
 
+VALID_CONTINENTS = ['Europe', 'Asia', 'Africa', 'Oceania', 'Americas']
 df_silver_pop = df_covid_pop.filter(
     (col("ISO 3166-1 alpha-3 CODE").isNotNull()) &
     (col("Country").isNotNull()) &
