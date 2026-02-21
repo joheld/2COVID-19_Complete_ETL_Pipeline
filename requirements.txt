@@ -1,0 +1,20 @@
+# ============================================================
+# requirements.txt - 2COVID-19_Complete_ETL_Pipeline
+# ============================================================
+# Dependencias para:
+#   - Tests locales con pytest (GitHub Actions CI)
+#   - Deploy a Databricks via CLI (GitHub Actions CD)
+# ------------------------------------------------------------
+# NOTA: pyspark NO esta aqui - los notebooks corren en
+#       Databricks Serverless que provee Spark nativo.
+# ============================================================
+
+# --- Testing ---
+pytest>=7.4.0
+pandas>=2.0.0
+
+# --- Databricks CLI (deploy) ---
+databricks-cli>=0.18.0
+
+# --- Utilidades opcionales ---
+requests>=2.31.0
