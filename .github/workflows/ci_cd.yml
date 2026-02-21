@@ -4,7 +4,7 @@
 # Flujo:
 #   1. [CI] En cada push: instala deps + corre 22 pytest locales
 #   2. [CD] Si tests pasan en main: deploya notebooks a Databricks
-#            y lanza el job 2COVID-19_Complete_ETL_Pipeline
+#              y lanza el job 2COVID-19_Complete_ETL_Pipeline
 #
 # Secrets requeridos en GitHub (Settings > Secrets > Actions):
 #   - DATABRICKS_HOST  : https://dbc-6100158f-36ab.cloud.databricks.com
@@ -92,9 +92,9 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: "pip"
 
-      - name: Instalar Databricks CLI
+      - name: Instalar Databricks CLI y dependencias
         run: |
-          pip install databricks-cli
+          pip install databricks-cli databricks-sdk
           databricks --version
 
       - name: Configurar autenticacion Databricks
@@ -142,19 +142,9 @@ jobs:
       - name: Lanzar Job en Databricks
         id: run_job
         run: |
-          RUN_OUTPUT=$(databricks jobs run-now --job-id ${{ env.DATABRICKS_JOB_ID }} 2>&1)
+          RUN_OUTPUT=$(databricks jobs run-now --job-id ${{ env.DATABRICKS_JOB_ID }})
           echo "$RUN_OUTPUT"
-          RUN_ID=$(echo "$RUN_OUTPUT" | python3 -c "
-import sys, json
-for line in sys.stdin:
-    try:
-        data = json.loads(line.strip())
-        if 'run_id' in data:
-            print(data['run_id'])
-            break
-    except:
-        pass
-")
+          RUN_ID=$(echo "$RUN_OUTPUT" | python3 -c "import sys,json; data=json.load(sys.stdin); print(data.get('run_id',''))")
           echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
           echo "[OK] Job lanzado con run_id=$RUN_ID"
 
@@ -166,32 +156,11 @@ for line in sys.stdin:
           MAX_WAIT=1800
           ELAPSED=0
           INTERVAL=30
+          RESULT_STATE=""
           while [ $ELAPSED -lt $MAX_WAIT ]; do
-            STATUS_JSON=$(databricks runs get --run-id $RUN_ID 2>&1)
-            LIFE_CYCLE=$(echo "$STATUS_JSON" | python3 -c "
-import sys, json
-for line in sys.stdin:
-    try:
-        data = json.loads(line.strip())
-        lc = data.get('state', {}).get('life_cycle_state', '')
-        if lc:
-            print(lc)
-            break
-    except:
-        pass
-")
-            RESULT_STATE=$(echo "$STATUS_JSON" | python3 -c "
-import sys, json
-for line in sys.stdin:
-    try:
-        data = json.loads(line.strip())
-        rs = data.get('state', {}).get('result_state', '')
-        if rs:
-            print(rs)
-            break
-    except:
-        pass
-" 2>/dev/null || echo "")
+            STATUS_JSON=$(databricks runs get --run-id "$RUN_ID")
+            LIFE_CYCLE=$(echo "$STATUS_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('state',{}).get('life_cycle_state',''))")
+            RESULT_STATE=$(echo "$STATUS_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('state',{}).get('result_state',''))" 2>/dev/null || echo "")
             echo "[$(date +%H:%M:%S)] life_cycle=$LIFE_CYCLE | result=$RESULT_STATE | elapsed=${ELAPSED}s"
             if [ "$LIFE_CYCLE" = "TERMINATED" ]; then
               echo "result_state=$RESULT_STATE" >> $GITHUB_OUTPUT
