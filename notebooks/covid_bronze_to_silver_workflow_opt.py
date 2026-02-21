@@ -43,6 +43,9 @@ df_silver_cases.write.format("delta") \
 # --- COVID Population Bronze → Silver ---
 df_covid_pop = spark.read.format("delta").table(f"{catalog}.{schema_bronze}.covid_pop_bronze")
 
+# Renombrar columna con caracteres especiales antes de operar
+df_covid_pop = df_covid_pop.withColumnRenamed("Tot Cases//1M pop", "tot_cases_per_million")
+
 df_silver_pop = df_covid_pop.filter(
     (col("ISO 3166-1 alpha-3 CODE").isNotNull()) &
     (col("Country").isNotNull()) &
@@ -55,7 +58,7 @@ df_silver_pop = df_covid_pop.filter(
     col("Population").alias("population"),
     col("Total Cases").alias("total_cases"),
     col("Total Deaths").alias("total_deaths"),
-    df_covid_pop["Tot Cases//1M pop"].alias("total_cases_per_million"),
+    col("tot_cases_per_million").alias("total_cases_per_million"),
     col("Tot Deaths/1M pop").alias("total_deaths_per_million"),
     col("Death percentage").alias("death_percentage"),
     col("Other names").alias("other_names")
