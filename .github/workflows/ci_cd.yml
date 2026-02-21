@@ -15,9 +15,9 @@ name: COVID-19 Pipeline CI/CD
 
 on:
   push:
-    branches: [ "**" ]          # CI en todos los branches
+    branches: [ "**" ]
   pull_request:
-    branches: [ main ]          # CI en PRs a main
+    branches: [ main ]
 
 env:
   DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
@@ -30,7 +30,6 @@ jobs:
 
   # ===========================================================
   # JOB 1: CI - Tests locales con pytest
-  # Se ejecuta en TODOS los pushes a cualquier branch
   # ===========================================================
   test:
     name: Run Local Tests (pytest)
@@ -75,14 +74,12 @@ jobs:
 
   # ===========================================================
   # JOB 2: CD - Deploy a Databricks
-  # Solo se ejecuta si:
-  #   - Tests pasaron (needs: test)
-  #   - Push directo a main branch
+  # Solo se ejecuta si tests pasaron Y es push a main
   # ===========================================================
   deploy:
     name: Deploy to Databricks & Run Job
     runs-on: ubuntu-latest
-    needs: test                          # BLOQUEA si test fallo
+    needs: test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
@@ -101,19 +98,16 @@ jobs:
           databricks --version
 
       - name: Configurar autenticacion Databricks
+        env:
+          DB_HOST: ${{ secrets.DATABRICKS_HOST }}
+          DB_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
         run: |
-          mkdir -p ~/.databrickscfg || true
-          cat > ~/.databrickscfg << EOF
-          [DEFAULT]
-          host = ${{ secrets.DATABRICKS_HOST }}
-          token = ${{ secrets.DATABRICKS_TOKEN }}
-          EOF
+          mkdir -p "$(dirname ~/.databrickscfg)"
+          printf '[DEFAULT]\nhost = %s\ntoken = %s\n' "$DB_HOST" "$DB_TOKEN" > ~/.databrickscfg
 
       - name: Verificar conexion a Databricks
         run: |
-          databricks workspace ls /Workspace/Users/joojle95@gmail.com/ \
-            --profile DEFAULT \
-            2>&1 | head -20
+          databricks workspace ls /Workspace/Users/joojle95@gmail.com/ 2>&1 | head -20
 
       - name: Desplegar notebook Bronze to Silver
         run: |
@@ -148,9 +142,7 @@ jobs:
       - name: Lanzar Job en Databricks
         id: run_job
         run: |
-          RUN_OUTPUT=$(databricks jobs run-now \
-            --job-id ${{ env.DATABRICKS_JOB_ID }} \
-            2>&1)
+          RUN_OUTPUT=$(databricks jobs run-now --job-id ${{ env.DATABRICKS_JOB_ID }} 2>&1)
           echo "$RUN_OUTPUT"
           RUN_ID=$(echo "$RUN_OUTPUT" | python3 -c "
 import sys, json
@@ -171,10 +163,9 @@ for line in sys.stdin:
         run: |
           RUN_ID="${{ steps.run_job.outputs.run_id }}"
           echo "Esperando run_id=$RUN_ID ..."
-          MAX_WAIT=1800   # 30 minutos max
+          MAX_WAIT=1800
           ELAPSED=0
           INTERVAL=30
-
           while [ $ELAPSED -lt $MAX_WAIT ]; do
             STATUS_JSON=$(databricks runs get --run-id $RUN_ID 2>&1)
             LIFE_CYCLE=$(echo "$STATUS_JSON" | python3 -c "
@@ -183,8 +174,11 @@ for line in sys.stdin:
     try:
         data = json.loads(line.strip())
         lc = data.get('state', {}).get('life_cycle_state', '')
-        if lc: print(lc); break
-    except: pass
+        if lc:
+            print(lc)
+            break
+    except:
+        pass
 ")
             RESULT_STATE=$(echo "$STATUS_JSON" | python3 -c "
 import sys, json
@@ -192,12 +186,13 @@ for line in sys.stdin:
     try:
         data = json.loads(line.strip())
         rs = data.get('state', {}).get('result_state', '')
-        if rs: print(rs); break
-    except: pass
+        if rs:
+            print(rs)
+            break
+    except:
+        pass
 " 2>/dev/null || echo "")
-
             echo "[$(date +%H:%M:%S)] life_cycle=$LIFE_CYCLE | result=$RESULT_STATE | elapsed=${ELAPSED}s"
-
             if [ "$LIFE_CYCLE" = "TERMINATED" ]; then
               echo "result_state=$RESULT_STATE" >> $GITHUB_OUTPUT
               if [ "$RESULT_STATE" = "SUCCESS" ]; then
@@ -208,11 +203,9 @@ for line in sys.stdin:
                 exit 1
               fi
             fi
-
             sleep $INTERVAL
             ELAPSED=$((ELAPSED + INTERVAL))
           done
-
           echo "[TIMEOUT] Job no termino en ${MAX_WAIT}s"
           exit 1
 
@@ -227,5 +220,4 @@ for line in sys.stdin:
           echo "Actor     : ${{ github.actor }}"
           echo "Run ID    : ${{ steps.run_job.outputs.run_id }}"
           echo "Job Result: ${{ steps.wait_job.outputs.result_state }}"
-          echo "Databricks: ${{ secrets.DATABRICKS_HOST }}/jobs/${{ env.DATABRICKS_JOB_ID }}"
           echo "====================================="
