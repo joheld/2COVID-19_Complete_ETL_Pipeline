@@ -55,7 +55,7 @@ df_silver_pop = df_covid_pop.filter(
     col("Population").alias("population"),
     col("Total Cases").alias("total_cases"),
     col("Total Deaths").alias("total_deaths"),
-    col("Tot Cases//1M pop").alias("total_cases_per_million"),
+    df_covid_pop["Tot Cases//1M pop"].alias("total_cases_per_million"),
     col("Tot Deaths/1M pop").alias("total_deaths_per_million"),
     col("Death percentage").alias("death_percentage"),
     col("Other names").alias("other_names")
