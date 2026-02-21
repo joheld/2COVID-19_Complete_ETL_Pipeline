@@ -1,0 +1,78 @@
+{
+  "_comment": "Configuracion del Databricks Job - 2COVID-19_Complete_ETL_Pipeline",
+  "_doc": "Este archivo documenta la estructura del job. El deploy via CI/CD usa la Databricks CLI.",
+
+  "job_id": "762347435635648",
+  "name": "2COVID-19_Complete_ETL_Pipeline",
+  "workspace_host": "https://dbc-6100158f-36ab.cloud.databricks.com",
+
+  "settings": {
+    "name": "2COVID-19_Complete_ETL_Pipeline",
+    "performance_optimized": true,
+    "tasks": [
+      {
+        "task_key": "Opt_bronze_to_silver",
+        "description": "Transforma datos crudos Bronze a capa Silver con filtros de calidad",
+        "notebook_task": {
+          "notebook_path": "/Workspace/Users/joojle95@gmail.com/covid workflow opt/covid_bronze_to_silver_workflow_opt",
+          "source": "WORKSPACE",
+          "base_parameters": {
+            "environment": "prod",
+            "catalog": "workspace",
+            "schema_bronze": "bronze",
+            "schema_silver": "silver",
+            "run_id": ""
+          }
+        },
+        "job_cluster_key": "serverless",
+        "libraries": [],
+        "depends_on": []
+      },
+      {
+        "task_key": "Opt_Silver_to_Gold",
+        "description": "Agrega datos Silver y construye tablas analiticas Gold",
+        "notebook_task": {
+          "notebook_path": "/Workspace/Users/joojle95@gmail.com/covid workflow opt/covid_silver_to_gold_workflow_opt",
+          "source": "WORKSPACE",
+          "base_parameters": {
+            "environment": "prod",
+            "catalog": "workspace",
+            "schema_silver": "silver",
+            "schema_gold": "gold",
+            "run_id": ""
+          }
+        },
+        "job_cluster_key": "serverless",
+        "libraries": [],
+        "depends_on": [
+          { "task_key": "Opt_bronze_to_silver" }
+        ]
+      }
+    ],
+    "job_clusters": [],
+    "compute": {
+      "kind": "Serverless",
+      "autoscaling": true
+    },
+    "queue": { "enabled": true },
+    "parameters": [],
+    "tags": {
+      "project": "covid-etl",
+      "layer": "all",
+      "owner": "joojle95@gmail.com"
+    }
+  },
+
+  "lineage": {
+    "upstream_tables": [
+      "workspace.bronze.covid_cases_bronze",
+      "workspace.bronze.covid_pop_bronze"
+    ],
+    "downstream_tables": [
+      "workspace.silver.wcovid_cases_silver",
+      "workspace.silver.wcovid_pop_silver",
+      "workspace.gold.wgold_continent_summary",
+      "workspace.gold.wgold_country_summary"
+    ]
+  }
+}
